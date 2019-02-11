@@ -1,0 +1,34 @@
+env $=$
+exec vbash -log input
+cmpenv stdout output
+
+-- input --
+if [ -e test ]
+then
+  echo "hello"
+fi
+# Hello world
+ls > /dev/null # Again
+-- output --
+
+trap 'echo Error on linue $${OUR_LINE_NO} in $${OUR_SOURCE_FILE}' ERR
+
+OUR_SOURCE_FILE="input"
+if [ -e test ]; then
+  {
+    OUR_LINE_NO=3
+    cat <<'THISWILLNEVERMATCH'
+> echo "hello"
+THISWILLNEVERMATCH
+    echo "hello"
+  }
+fi
+{
+  OUR_LINE_NO=6
+  cat <<'THISWILLNEVERMATCH'
+> ls >/dev/null
+THISWILLNEVERMATCH
+
+  ls >/dev/null
+}
+

@@ -1,0 +1,8 @@
+exec vbash input
+cmp stdout output
+
+-- input --
+echo hello | sed -e 's/hello/world/g'
+-- output --
+> echo hello | sed -e 's/hello/world/g'
+world

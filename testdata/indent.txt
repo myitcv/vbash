@@ -1,0 +1,15 @@
+chmod 0755 run_nested
+exec vbash input
+cmp stdout output
+
+-- input --
+./run_nested
+
+-- run_nested --
+#!/usr/bin/env vbash
+
+echo "Hello world"
+-- output --
+> ./run_nested
+	> echo "Hello world"
+	Hello world

@@ -1,0 +1,6 @@
+exec vbash input
+stdout ^\.vbash
+! stderr .+
+
+-- input --
+echo $BASH_SOURCE
