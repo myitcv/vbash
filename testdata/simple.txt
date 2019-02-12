@@ -1,0 +1,60 @@
+env $=$
+env FILENAME=input
+! exec vbash input
+cmpenv stdout output
+! stderr .+
+
+env FILENAME=<stdin>
+stdin input
+! exec vbash
+cmpenv stdout output
+! stderr .+
+
+-- input --
+set -eu;
+function foo {
+	echo this is foo
+}
+function bar {
+	echo this is foo
+}
+for i in 1 2 3
+do
+	echo This is $i #!
+	echo This is $i ##
+        echo $i
+	foo
+done
+{
+	foo;
+}
+false
+bar
+
+-- output --
+> set -eu
+This is 1
+> echo This is 1
+This is 1
+> echo $$i
+1
+> foo
+this is foo
+This is 2
+> echo This is 2
+This is 2
+> echo $$i
+2
+> foo
+this is foo
+This is 3
+> echo This is 3
+This is 3
+> echo $$i
+3
+> foo
+this is foo
+> foo
+this is foo
+> false
+Error on linue 18 in $FILENAME

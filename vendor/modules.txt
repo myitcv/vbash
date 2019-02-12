@@ -1,0 +1,13 @@
+# github.com/rogpeppe/go-internal v1.2.1
+github.com/rogpeppe/go-internal/testscript
+github.com/rogpeppe/go-internal/imports
+github.com/rogpeppe/go-internal/internal/os/execpath
+github.com/rogpeppe/go-internal/internal/textutil
+github.com/rogpeppe/go-internal/par
+github.com/rogpeppe/go-internal/testenv
+github.com/rogpeppe/go-internal/txtar
+# gopkg.in/errgo.v2 v2.1.0
+gopkg.in/errgo.v2/fmt/errors
+gopkg.in/errgo.v2/errors
+# mvdan.cc/sh/v3 v3.0.0-alpha0
+mvdan.cc/sh/v3/syntax

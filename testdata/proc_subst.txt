@@ -1,0 +1,18 @@
+exec vbash -log input
+cmp stdout output
+
+-- input --
+diff -wu <(nested_test_dirs) <(nested_test_dirs | grep -v -f <(nested_test_dir_patterns))
+-- output --
+
+trap 'echo Error on linue ${OUR_LINE_NO} in ${OUR_SOURCE_FILE}' ERR
+
+OUR_SOURCE_FILE="input"
+{
+  OUR_LINE_NO=1
+  cat <<'THISWILLNEVERMATCH'
+> diff -wu <(nested_test_dirs) <(nested_test_dirs | grep -v -f <(nested_test_dir_patterns))
+THISWILLNEVERMATCH
+  diff -wu <(nested_test_dirs) <(nested_test_dirs | grep -v -f <(nested_test_dir_patterns))
+}
+
