@@ -116,11 +116,11 @@ func mainerr() error {
 		}
 		switch n := n.(type) {
 		case *syntax.IfClause:
-			for _, s := range n.Then.Stmts {
-				syntax.Walk(s, walk)
-			}
-			for _, s := range n.Else.Stmts {
-				syntax.Walk(s, walk)
+			for n != nil {
+				for _, s := range n.Then.Stmts {
+					syntax.Walk(s, walk)
+				}
+				n = n.Else
 			}
 			return false
 		case *syntax.ProcSubst:
@@ -164,7 +164,9 @@ func mainerr() error {
 
 	toRun := new(bytes.Buffer)
 	fmt.Fprintf(toRun, `
-trap 'echo Error on linue ${OUR_LINE_NO} in ${OUR_SOURCE_FILE}' ERR
+set -o errtrace
+
+trap 'set +u; echo Error on linue ${OUR_LINE_NO} in ${OUR_SOURCE_FILE}; exit 1' ERR
 
 OUR_SOURCE_FILE="%[1]v"
 `, fn)
