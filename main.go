@@ -21,6 +21,7 @@ var (
 	debugOut = false
 	stdOut   = false
 
+	fS      = flag.Bool("s", false, "read from standard input and treat arguments as positional")
 	fLog    = flag.Bool("log", false, "log output instead of running it")
 	fGoRoot = flag.String("goroot", "", "path to GOROOT to use")
 
@@ -58,15 +59,15 @@ func mainerr() error {
 
 	var fn = "<stdin>"
 	var err error
-
-	if len(flag.Args()) > 0 {
-		fn = flag.Arg(0)
-	}
-
+	args := flag.Args()
+	var bashArgs []string
 	var fi *os.File
-	if len(flag.Args()) == 0 {
+
+	if len(args) == 0 || *fS {
 		fi = os.Stdin
-	} else {
+		bashArgs = args
+	} else if len(args) > 0 {
+		fn, bashArgs = args[0], args[1:]
 		fi, err = os.Open(fn)
 		if err != nil {
 			return fmt.Errorf("failed to open %v: %v", fn, err)
@@ -180,6 +181,9 @@ OUR_SOURCE_FILE="%[1]v"
 	indent := os.Getenv("VBASHINDENT")
 
 	cmd := exec.Command("env", "bash")
+	if *fS {
+		cmd.Args = append(cmd.Args, "-s")
+	}
 	// We want the wrapped process to write stdout and stderr to the same
 	// io.Writer, because we ultimately define that vbash outputs everything
 	// to stdout. This also means that indenting works.
@@ -225,6 +229,7 @@ OUR_SOURCE_FILE="%[1]v"
 		}
 		cmd.Args = append(cmd.Args, cin.Name())
 	}
+	cmd.Args = append(cmd.Args, bashArgs...)
 	cmd.Env = append(os.Environ(), "VBASHINDENT="+indent+"\t")
 
 	if err := cmd.Run(); err != nil {
