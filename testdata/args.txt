@@ -1,0 +1,38 @@
+# file with no args
+exec vbash input
+stdout '^\Qnargs: 0, $1: ""\E$'
+! stderr .+
+
+# file with args
+exec vbash input first
+stdout '^\Qnargs: 1, $1: "first"\E$'
+! stderr .+
+
+# no file with args
+! exec vbash first
+! stdout .+
+stderr '^failed to open first: open first: no such file or directory$'
+
+# stdin with no args
+stdin input
+exec vbash
+stdout '^\Qnargs: 0, $1: ""\E$'
+! stderr .+
+
+# stdin, no -s, with args
+stdin input
+! exec vbash first
+! stdout .+
+stderr '^failed to open first: open first: no such file or directory$'
+
+# stdin, -s, with args
+stdin input
+exec vbash -s first
+stdout '^\Qnargs: 1, $1: "first"\E$'
+! stderr .+
+
+-- input --
+set -eu
+echo "nargs: $#, \$1: \"${1:-}\""
+
+-- output --
