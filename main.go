@@ -232,7 +232,11 @@ OUR_SOURCE_FILE="%[1]v"
 	cmd.Args = append(cmd.Args, bashArgs...)
 	cmd.Env = append(os.Environ(), "VBASHINDENT="+indent+"\t")
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start %v: %v", strings.Join(cmd.Args, " "), err)
+	}
+
+	if err := cmd.Wait(); err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			status := ee.Sys().(syscall.WaitStatus)
 			return exitError(status.ExitStatus())
