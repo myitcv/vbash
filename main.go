@@ -167,7 +167,7 @@ func mainerr() error {
 	fmt.Fprintf(toRun, `
 set -o errtrace
 
-trap 'set +u; echo Error on linue ${OUR_LINE_NO} in ${OUR_SOURCE_FILE}; exit 1' ERR
+trap 'set +eu; echo Error on linue ${OUR_LINE_NO} in ${OUR_SOURCE_FILE}' ERR
 
 OUR_SOURCE_FILE="%[1]v"
 `, fn)
