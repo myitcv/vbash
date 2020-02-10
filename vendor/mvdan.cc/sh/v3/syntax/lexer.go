@@ -86,9 +86,8 @@ retry:
 			p.w, p.r = 1, rune(b)
 			return p.r
 		}
-		if p.bsp+utf8.UTFMax >= len(p.bs) {
-			// we might need up to 4 bytes to read a full
-			// non-ascii rune
+		if !utf8.FullRune(p.bs[p.bsp:]) {
+			// we need more bytes to read a full non-ascii rune
 			p.fill()
 		}
 		var w int
@@ -241,7 +240,6 @@ skipSpace:
 			return
 		}
 	}
-changedState:
 	p.pos = p.getPos()
 	switch {
 	case p.quote&allRegTokens != 0:
@@ -298,7 +296,7 @@ changedState:
 	case p.quote == testRegexp:
 		if !p.rxFirstPart && p.spaced {
 			p.quote = noState
-			goto changedState
+			goto skipSpace
 		}
 		p.rxFirstPart = false
 		switch r {
@@ -914,9 +912,6 @@ func (p *Parser) advanceLitHdoc(r rune) {
 		}
 	}
 	lStart := len(p.litBs) - 1
-	if lStart < 0 {
-		return
-	}
 	for ; ; r = p.rune() {
 		switch r {
 		case '`', '$':
@@ -965,9 +960,6 @@ func (p *Parser) quotedHdocWord() *Word {
 			}
 		}
 		lStart := len(p.litBs) - 1
-		if lStart < 0 {
-			return nil
-		}
 		for r != utf8.RuneSelf && r != '\n' {
 			r = p.rune()
 		}

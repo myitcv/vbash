@@ -39,7 +39,7 @@ func Walk(node Node, f func(Node) bool) {
 	case *Comment:
 	case *Stmt:
 		for _, c := range x.Comments {
-			if c.Pos().After(x.Pos()) {
+			if !x.End().After(c.Pos()) {
 				defer Walk(&c, f)
 				break
 			}
@@ -84,7 +84,9 @@ func Walk(node Node, f func(Node) bool) {
 	case *IfClause:
 		walkStmts(x.Cond, f)
 		walkStmts(x.Then, f)
-		walkStmts(x.Else, f)
+		if x.Else != nil {
+			Walk(x.Else, f)
+		}
 	case *WhileClause:
 		walkStmts(x.Cond, f)
 		walkStmts(x.Do, f)
@@ -199,7 +201,9 @@ func Walk(node Node, f func(Node) bool) {
 		if x.Index != nil {
 			Walk(x.Index, f)
 		}
-		Walk(x.Value, f)
+		if x.Value != nil {
+			Walk(x.Value, f)
+		}
 	case *ExtGlob:
 		Walk(x.Pattern, f)
 	case *ProcSubst:

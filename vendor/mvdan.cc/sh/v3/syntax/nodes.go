@@ -23,7 +23,7 @@ type Node interface {
 type File struct {
 	Name string
 
-	StmtList
+	StmtList // exposing its Pos and End methods
 }
 
 // StmtList is a list of statements with any number of trailing comments. Both
@@ -33,7 +33,7 @@ type StmtList struct {
 	Last  []Comment
 }
 
-func (s StmtList) pos() Pos {
+func (s StmtList) Pos() Pos {
 	if len(s.Stmts) > 0 {
 		s := s.Stmts[0]
 		sPos := s.Pos()
@@ -50,7 +50,7 @@ func (s StmtList) pos() Pos {
 	return Pos{}
 }
 
-func (s StmtList) end() Pos {
+func (s StmtList) End() Pos {
 	if len(s.Last) > 0 {
 		return s.Last[len(s.Last)-1].End()
 	}
@@ -99,9 +99,6 @@ func (p Pos) IsValid() bool { return p.line > 0 }
 // After reports whether the position p is after p2. It is a more expressive
 // version of p.Offset() > p2.Offset().
 func (p Pos) After(p2 Pos) bool { return p.offs > p2.offs }
-
-func (f *File) Pos() Pos { return f.StmtList.pos() }
-func (f *File) End() Pos { return f.StmtList.end() }
 
 func posAddCol(p Pos, n int) Pos {
 	p.col += uint16(n)
@@ -246,7 +243,12 @@ func (r *Redirect) Pos() Pos {
 	}
 	return r.OpPos
 }
-func (r *Redirect) End() Pos { return r.Word.End() }
+func (r *Redirect) End() Pos {
+	if r.Hdoc != nil {
+		return r.Hdoc.End()
+	}
+	return r.Word.End()
+}
 
 // CallExpr represents a command execution or function call, otherwise known as
 // a "simple command".
@@ -283,7 +285,7 @@ func (s *Subshell) Pos() Pos { return s.Lparen }
 func (s *Subshell) End() Pos { return posAddCol(s.Rparen, 1) }
 
 // Block represents a series of commands that should be executed in a nested
-// scope.
+// scope. It is essentially a StmtList within curly braces.
 type Block struct {
 	Lbrace, Rbrace Pos
 	StmtList
@@ -292,51 +294,21 @@ type Block struct {
 func (b *Block) Pos() Pos { return b.Lbrace }
 func (b *Block) End() Pos { return posAddCol(b.Rbrace, 1) }
 
-// TODO(v3): Refactor and simplify elif/else. For example, we could likely make
-// Else an *IfClause, remove ElsePos, make IfPos also do opening "else"
-// positions, and join the comment slices as Last []Comment.
-
 // IfClause represents an if statement.
 type IfClause struct {
-	Elif    bool // whether this IfClause begins with "elif"
-	IfPos   Pos  // position of the starting "if" or "elif" token
-	ThenPos Pos
-	ElsePos Pos // position of a following "else" or "elif", if any
-	FiPos   Pos // position of "fi", empty if Elif == true
+	Position Pos // position of the starting "if", "elif", or "else" token
+	ThenPos  Pos // position of "then", empty if this is an "else"
+	FiPos    Pos // position of "fi", shared with .Else if non-nil
 
 	Cond StmtList
 	Then StmtList
-	Else StmtList
+	Else *IfClause // if non-nil, an "elif" or an "else"
 
-	ElseComments []Comment // comments on the "else"
-	FiComments   []Comment // comments on the "fi"
+	Last []Comment // comments on the first "elif", "else", or "fi"
 }
 
-func (c *IfClause) Pos() Pos { return c.IfPos }
-func (c *IfClause) End() Pos {
-	if !c.FiPos.IsValid() {
-		return posAddCol(c.ElsePos, 4)
-	}
-	return posAddCol(c.FiPos, 2)
-}
-
-// FollowedByElif reports whether this IfClause is followed by an "elif"
-// IfClause in its Else branch. This is true if Else.Stmts has exactly one
-// statement with an IfClause whose Elif field is true.
-func (c *IfClause) FollowedByElif() bool {
-	if len(c.Else.Stmts) != 1 {
-		return false
-	}
-	ic, _ := c.Else.Stmts[0].Cmd.(*IfClause)
-	return ic != nil && ic.Elif
-}
-
-func (c *IfClause) bodyEndPos() Pos {
-	if c.ElsePos.IsValid() {
-		return c.ElsePos
-	}
-	return c.FiPos
-}
+func (c *IfClause) Pos() Pos { return c.Position }
+func (c *IfClause) End() Pos { return posAddCol(c.FiPos, 2) }
 
 // WhileClause represents a while or an until clause.
 type WhileClause struct {
@@ -371,14 +343,21 @@ func (*WordIter) loopNode()   {}
 func (*CStyleLoop) loopNode() {}
 
 // WordIter represents the iteration of a variable over a series of words in a
-// for clause.
+// for clause. If InPos is an invalid position, the "in" token was missing, so
+// the iteration is over the shell's positional parameters.
 type WordIter struct {
 	Name  *Lit
+	InPos Pos // position of "in"
 	Items []*Word
 }
 
 func (w *WordIter) Pos() Pos { return w.Name.Pos() }
-func (w *WordIter) End() Pos { return posMax(w.Name.End(), wordLastEnd(w.Items)) }
+func (w *WordIter) End() Pos {
+	if len(w.Items) > 0 {
+		return wordLastEnd(w.Items)
+	}
+	return posMax(w.Name.End(), posAddCol(w.InPos, 2))
+}
 
 // CStyleLoop represents the behaviour of a for clause similar to the C
 // language.
@@ -462,6 +441,7 @@ func (*CmdSubst) wordPartNode()  {}
 func (*ArithmExp) wordPartNode() {}
 func (*ProcSubst) wordPartNode() {}
 func (*ExtGlob) wordPartNode()   {}
+func (*BraceExp) wordPartNode()  {}
 
 // Lit represents a string literal.
 //
@@ -684,7 +664,7 @@ func (c *CaseItem) End() Pos {
 	if c.OpPos.IsValid() {
 		return posAddCol(c.OpPos, len(c.Op.String()))
 	}
-	return c.StmtList.end()
+	return c.StmtList.End()
 }
 
 // TestClause represents a Bash extended test clause.
@@ -776,8 +756,12 @@ func (a *ArrayExpr) Pos() Pos { return a.Lparen }
 func (a *ArrayExpr) End() Pos { return posAddCol(a.Rparen, 1) }
 
 // ArrayElem represents a Bash array element.
+//
+// Index can be nil; for example, declare -a x=(value).
+// Value can be nil; for example, declare -A x=([index]=).
+// Finally, neither can be nil; for example, declare -A x=([index]=value)
 type ArrayElem struct {
-	Index    ArithmExpr // [i]=, ["k"]=
+	Index    ArithmExpr
 	Value    *Word
 	Comments []Comment
 }
@@ -788,7 +772,12 @@ func (a *ArrayElem) Pos() Pos {
 	}
 	return a.Value.Pos()
 }
-func (a *ArrayElem) End() Pos { return a.Value.End() }
+func (a *ArrayElem) End() Pos {
+	if a.Value != nil {
+		return a.Value.End()
+	}
+	return posAddCol(a.Index.Pos(), 1)
+}
 
 // ExtGlob represents a Bash extended globbing expression. Note that these are
 // parsed independently of whether shopt has been called or not.
@@ -855,6 +844,22 @@ type LetClause struct {
 
 func (l *LetClause) Pos() Pos { return l.Let }
 func (l *LetClause) End() Pos { return l.Exprs[len(l.Exprs)-1].End() }
+
+// BraceExp represents a Bash brace expression, such as "{x,y}" or "{1..10}".
+//
+// This node will only appear as a result of SplitBraces.
+type BraceExp struct {
+	Sequence bool // {x..y[..incr]} instead of {x,y[,...]}
+	Chars    bool // sequence is of chars, not numbers (TODO: remove)
+	Elems    []*Word
+}
+
+func (b *BraceExp) Pos() Pos {
+	return posAddCol(b.Elems[0].Pos(), -1)
+}
+func (b *BraceExp) End() Pos {
+	return posAddCol(wordLastEnd(b.Elems), 1)
+}
 
 func wordLastEnd(ws []*Word) Pos {
 	if len(ws) == 0 {
